@@ -9,17 +9,19 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name, ['package.xml',
+                                   'launch/object_detection.launch.xml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='rshima',
     maintainer_email='rintarohshima2023@u.northwestern.edu',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='This package wraps YOLOv7 into a ROS2 node',
+    license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'object_detection = object_detection.object_detection:main'
         ],
     },
 )

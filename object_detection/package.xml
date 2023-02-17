@@ -3,9 +3,9 @@
 <package format="3">
   <name>object_detection</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>This package wraps YOLOv7 into a ROS2 node</description>
   <maintainer email="rintarohshima2023@u.northwestern.edu">rshima</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
