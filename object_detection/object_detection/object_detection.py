@@ -22,10 +22,8 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized,
 
 class ObjectDetection(Node):
     def __init__(self):
-        # while True:
         super().__init__("ObjectDetection")
         # True initial variables - these only get set once
-
 
         self.declare_parameter("weights", "yolov7.pt", ParameterDescriptor(description="Weights file"))
         self.declare_parameter("conf_thres", 0.25, ParameterDescriptor(description="Confidence threshold"))
@@ -41,12 +39,7 @@ class ObjectDetection(Node):
 
         self.frequency = 1000  # Hz
         self.timer = self.create_timer(1/self.frequency, self.timer_callback)
-        # self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        # self.detection = YoloV7('yolov7.pt', 0.25, 0.45, self.device, 640)
         self.get_logger().info(f"depth_coord")
-        # self.weights = 'yolov7.pt'
-        # self.conf_thres = 0.25
-        # self.iou_thres = 0.45
 
         # Initialize
         set_logging()
@@ -55,7 +48,6 @@ class ObjectDetection(Node):
 
         # Load model
         self.model = attempt_load(self.weights, map_location=self.device) # load FP32 model
-        # self.model = torch.hub.load()
         stride = int(self.model.stride.max())  # model stride
         imgsz = check_img_size(self.img_size, s=stride)  # check img_size
 
@@ -95,15 +87,16 @@ class ObjectDetection(Node):
             # Wait for available frames
             # Frame set includes time synchronized frames of each enabled stream in the pipeline
             frames = pipeline.wait_for_frames()
+
             # Get aligned frames from RGB-D camera
             aligned_frames = align.process(frames)
             color_frame = aligned_frames.get_color_frame()
             depth_frame = aligned_frames.get_depth_frame()
-            # if not depth_frame or not color_frame:
-            #     continue
+
             # Convert frames to numpy arrays
             img = np.asanyarray(color_frame.get_data())
             depth_image = np.asanyarray(depth_frame.get_data())
+
             # Get color depth image
             depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
             im0 = img.copy()
@@ -116,6 +109,7 @@ class ObjectDetection(Node):
             img /= 255.0  # 0 - 255 to 0.0 - 1.0
             if img.ndimension() == 3:
                 img = img.unsqueeze(0)
+
             # Warmup
             if self.device.type != 'cpu' and (self.old_img_b != img.shape[0] or self.old_img_h != img.shape[2] or self.old_img_w != img.shape[3]):
                 self.old_img_b = img.shape[0]
@@ -123,23 +117,28 @@ class ObjectDetection(Node):
                 self.old_img_w = img.shape[3]
                 for i in range(3):
                     self.model(img)[0]
+
             # Inference
             t1 = time_synchronized()
             with torch.no_grad():   # Calculating gradients would cause a GPU memory leak
                 pred = self.model(img)[0]
             t2 = time_synchronized()
+
             # Apply NMS
             pred = non_max_suppression(pred, self.conf_thres, self.iou_thres)
             t3 = time_synchronized()
+
             # Process detections
             for i, det in enumerate(pred):  # detections per image
                 gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
                 if len(det):
                     # Rescale boxes from img_size to im0 size
                     det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+
                     # Print results
                     for c in det[:, -1].unique():
                         n = (det[:, -1] == c).sum()  # detections per class
+
                     # Write results
                     for *xyxy, conf, cls in reversed(det):
                         label = f'{self.names[int(cls)]} {conf:.2f}'
@@ -169,24 +168,9 @@ class ObjectDetection(Node):
         # self.detection.detect()
         self.detect()
 
-
 def main(args=None):
     """Run the main function."""
     rclpy.init(args=args)
-    node = rclpy.create_node("object_detection")
-
-    node.declare_parameter("weights", "yolov7.pt", ParameterDescriptor(description="Weights file"))
-    node.declare_parameter("conf_thres", 0.25, ParameterDescriptor(description="Confidence threshold"))
-    node.declare_parameter("iou_thres", 0.45, ParameterDescriptor(description="IOU threshold"))
-    node.declare_parameter("device", "cpu", ParameterDescriptor(description="Name of the device"))
-    node.declare_parameter("img_size", 640, ParameterDescriptor(description="Image size"))
-
-    weights = node.get_parameter("weights").get_parameter_value().string_value
-    conf_thres = node.get_parameter("conf_thres").get_parameter_value().double_value
-    iou_thres = node.get_parameter("iou_thres").get_parameter_value().double_value
-    device = node.get_parameter("device").get_parameter_value().string_value
-    img_size = node.get_parameter("img_size").get_parameter_value().integer_value
-
     with torch.no_grad():
         # obj_detected = YoloV7('yolov7.pt', 0.25, 0.45, device, 640)
         node = ObjectDetection()
