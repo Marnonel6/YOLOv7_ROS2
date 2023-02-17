@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Int16MultiArray
+from rcl_interfaces.msg import ParameterDescriptor
 
 import argparse
 from pathlib import Path
@@ -9,6 +9,7 @@ import cv2
 import torch
 import numpy as np
 import pyrealsense2 as rs
+import requests
 
 from models.experimental import attempt_load
 from utils.general import check_img_size, non_max_suppression, scale_coords, \
@@ -25,12 +26,6 @@ class YoloV7():
         self.conf_thres = conf_thres
         self.iou_thres = iou_thres
 
-        # source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
-
-        # # Directories
-        # save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
-        # (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
-
         # Initialize
         set_logging()
         self.device = select_device(device)
@@ -38,20 +33,12 @@ class YoloV7():
 
         # Load model
         self.model = attempt_load(self.weights, map_location=self.device) # load FP32 model
+        # self.model = torch.hub.load()
         stride = int(self.model.stride.max())  # model stride
         imgsz = check_img_size(img_size, s=stride)  # check img_size
 
-        # if trace:
-        #     self.model = TracedModel(self.model, device, img_size)
-
         if self.half:
             self.model.half()  # to FP16
-
-        # # Second-stage classifier
-        # classify = False
-        # if classify:
-        #     modelc = load_classifier(name='resnet101', n=2)  # initialize
-        #     modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model']).to(device).eval()
 
         # Get names and colors
         self.names = self.model.module.names if hasattr(self.model, 'module') else self.model.names
@@ -150,51 +137,30 @@ class YoloV7():
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
 
-class ObjectDetection(Node):
-    def __init__(self, detection):
-        while True:
-            detection.detect()
-
 def main(args=None):
     """Run the main function."""
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
     rclpy.init(args=args)
+    node = rclpy.create_node("object_detection")
+
+    node.declare_parameter("weights", "yolov7.pt", ParameterDescriptor(description="Weights file"))
+    node.declare_parameter("conf_thres", 0.25, ParameterDescriptor(description="Confidence threshold"))
+    node.declare_parameter("iou_thres", 0.45, ParameterDescriptor(description="IOU threshold"))
+    node.declare_parameter("device", "cpu", ParameterDescriptor(description="Name of the device"))
+    node.declare_parameter("img_size", 640, ParameterDescriptor(description="Image size"))
+
+    weights = node.get_parameter("weights").get_parameter_value().string_value
+    conf_thres = node.get_parameter("conf_thres").get_parameter_value().double_value
+    iou_thres = node.get_parameter("iou_thres").get_parameter_value().double_value
+    device = node.get_parameter("device").get_parameter_value().string_value
+    img_size = node.get_parameter("img_size").get_parameter_value().integer_value
+
     with torch.no_grad():
-        obj_detected = YoloV7('yolov7.pt', 0.25, 0.45, device, 640)
-        node = ObjectDetection(obj_detected)
+        obj_detected = YoloV7(weights, conf_thres, iou_thres, device, img_size)
+        obj_detected.detect()
         rclpy.spin(node)
         rclpy.shutdown()
 
 
 if __name__ == '__main__':
     main()
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('--weights', nargs='+', type=str, default='yolov7.pt', help='model.pt path(s)')
-#     parser.add_argument('--source', type=str, default='inference/images', help='source')  # file/folder, 0 for webcam
-#     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
-#     parser.add_argument('--conf-thres', type=float, default=0.25, help='object confidence threshold')
-#     parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
-#     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-#     parser.add_argument('--view-img', action='store_true', help='display results')
-#     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
-#     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
-#     parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
-#     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
-#     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
-#     parser.add_argument('--augment', action='store_true', help='augmented inference')
-#     parser.add_argument('--update', action='store_true', help='update all models')
-#     parser.add_argument('--project', default='runs/detect', help='save results to project/name')
-#     parser.add_argument('--name', default='exp', help='save results to project/name')
-#     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-#     parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
-#     opt, unknown = parser.parse_known_args()
-#     print(opt)
-#     #check_requirements(exclude=('pycocotools', 'thop'))
-
-#     with torch.no_grad():
-#         if opt.update:  # update all models (to fix SourceChangeWarning)
-#             for opt.weights in ['yolov7.pt']:
-#                 main()
-#                 strip_optimizer(opt.weights)
-#         else:
-#             main()
