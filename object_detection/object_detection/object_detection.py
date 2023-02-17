@@ -25,6 +25,9 @@ class YoloV7():
         self.conf_thres = conf_thres
         self.iou_thres = iou_thres
 
+
+        # self.get_logger().info("HALLOOOOOO ????")
+
         # source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
 
         # # Directories
@@ -73,97 +76,111 @@ class YoloV7():
         pipeline = rs.pipeline()
         profile = pipeline.start(config)
 
+        # Getting the depth sensor's depth scale (see rs-align example for explanation)
+        depth_sensor = profile.get_device().first_depth_sensor()
+        depth_scale = depth_sensor.get_depth_scale()
+
         # Perform per pixel geometric transformation on the data provided
-        data = rs.stream.color
-        align = rs.align(data)
+        # Allign depth frame to color
+        align_to = rs.stream.color
+        align = rs.align(align_to)
 
-        while True:
-            # Wait for available frames
-            # Frame set includes time synchronized frames of each enabled stream in the pipeline
-            frames = pipeline.wait_for_frames()
-
-            # Get aligned frames from RGB-D camera
-            aligned_frames = align.process(frames)
-            color_frame = aligned_frames.get_color_frame()
-            depth_frame = aligned_frames.get_depth_frame()
-            if not depth_frame or not color_frame:
-                continue
-
-            # Convert frames to numpy arrays
-            img = np.asanyarray(color_frame.get_data())
-            depth_image = np.asanyarray(depth_frame.get_data())
-
-            # Get color depth image
-            depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
-
-            im0 = img.copy()
-            img = img[np.newaxis, :, :, :]
-            img = np.stack(img, 0)
-
-            img = img[..., ::-1].transpose((0, 3, 1, 2))
-            img = np.ascontiguousarray(img)
-
-            img = torch.from_numpy(img).to(self.device)
-            img = img.half() if self.half else img.float()  # uint8 to fp16/32
-            img /= 255.0  # 0 - 255 to 0.0 - 1.0
-            if img.ndimension() == 3:
-                img = img.unsqueeze(0)
-
-            # Warmup
-            if self.device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
-                old_img_b = img.shape[0]
-                old_img_h = img.shape[2]
-                old_img_w = img.shape[3]
-                for i in range(3):
-                    self.model(img)[0]
-
-            # Inference
-            t1 = time_synchronized()
-            with torch.no_grad():   # Calculating gradients would cause a GPU memory leak
-                pred = self.model(img)[0]
-            t2 = time_synchronized()
-
-            # Apply NMS
-            pred = non_max_suppression(pred, self.conf_thres, self.iou_thres)
-            t3 = time_synchronized()
-
-            # Process detections
-            for i, det in enumerate(pred):  # detections per image
-                gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-                if len(det):
-                    # Rescale boxes from img_size to im0 size
-                    det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
-
-                    # Print results
-                    for c in det[:, -1].unique():
-                        n = (det[:, -1] == c).sum()  # detections per class
-
-                    # Write results
-                    for *xyxy, conf, cls in reversed(det):
-                        label = f'{self.names[int(cls)]} {conf:.2f}'
-                        # Draw a boundary box around each object
-                        plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
-                        plot_one_box(xyxy, depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
-
-                cv2.imshow("Detection result", im0)
-                cv2.imshow("Detection result depth", depth_color_map)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+        # while True:
+        # Wait for available frames
+        # Frame set includes time synchronized frames of each enabled stream in the pipeline
+        frames = pipeline.wait_for_frames()
+        # Get aligned frames from RGB-D camera
+        aligned_frames = align.process(frames)
+        color_frame = aligned_frames.get_color_frame()
+        depth_frame = aligned_frames.get_depth_frame()
+        # if not depth_frame or not color_frame:
+            # continue
+        # Convert frames to numpy arrays
+        img = np.asanyarray(color_frame.get_data())
+        depth_image = np.asanyarray(depth_frame.get_data())
+        # Get color depth image
+        depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
+        im0 = img.copy()
+        img = img[np.newaxis, :, :, :]
+        img = np.stack(img, 0)
+        img = img[..., ::-1].transpose((0, 3, 1, 2))
+        img = np.ascontiguousarray(img)
+        img = torch.from_numpy(img).to(self.device)
+        img = img.half() if self.half else img.float()  # uint8 to fp16/32
+        img /= 255.0  # 0 - 255 to 0.0 - 1.0
+        if img.ndimension() == 3:
+            img = img.unsqueeze(0)
+        # Warmup
+        if self.device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
+            old_img_b = img.shape[0]
+            old_img_h = img.shape[2]
+            old_img_w = img.shape[3]
+            for i in range(3):
+                self.model(img)[0]
+        # Inference
+        t1 = time_synchronized()
+        with torch.no_grad():   # Calculating gradients would cause a GPU memory leak
+            pred = self.model(img)[0]
+        t2 = time_synchronized()
+        # Apply NMS
+        pred = non_max_suppression(pred, self.conf_thres, self.iou_thres)
+        t3 = time_synchronized()
+        # Process detections
+        for i, det in enumerate(pred):  # detections per image
+            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            if len(det):
+                # Rescale boxes from img_size to im0 size
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                # Print results
+                for c in det[:, -1].unique():
+                    n = (det[:, -1] == c).sum()  # detections per class
+                # Write results
+                for *xyxy, conf, cls in reversed(det):
+                    label = f'{self.names[int(cls)]} {conf:.2f}'
+                    # Draw a boundary box around each object
+                    plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
+                    plot_one_box(xyxy, depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
+                    # Get box top left & bottom right coordinates
+                    c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
+                x = int((c2[0]+c1[0])/2)
+                y = int((c2[1]+c1[1])/2)
+                # print(f"c1 = {c1}, c2 = {c2}")
+                print(f"x = {x}, y = {y}")
+                if x < 480 and y < 480: #and depth_image[x][y] < 1000:
+                    # get depth using x,y coordinates value in the depth matrix
+                    profile_stre = profile.get_stream(rs.stream.color)
+                    intr = profile_stre.as_video_stream_profile().get_intrinsics()
+                    depth_coords = rs.rs2_deproject_pixel_to_point(intr, [x,y], depth_image[x][y])
+                    if depth_coords != [0.0,0.0,0.0]:
+                        print(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
+                        # self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
+            cv2.imshow("Detection result", im0)
+            cv2.imshow("Detection result depth", depth_color_map)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
 class ObjectDetection(Node):
-    def __init__(self, detection):
-        while True:
-            detection.detect()
+    def __init__(self):
+        # while True:
+        super().__init__("ObjectDetection")
+        # True initial variables - these only get set once
+        self.frequency = 1000  # Hz
+        self.timer = self.create_timer(1/self.frequency, self.timer_callback)
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.detection = YoloV7('yolov7.pt', 0.25, 0.45, self.device, 640)
+        self.get_logger().info(f"depth_coord")
+
+    def timer_callback(self):
+        self.detection.detect()
 
 def main(args=None):
     """Run the main function."""
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     rclpy.init(args=args)
-    with torch.no_grad():
-        obj_detected = YoloV7('yolov7.pt', 0.25, 0.45, device, 640)
-        node = ObjectDetection(obj_detected)
-        rclpy.spin(node)
-        rclpy.shutdown()
+    # with torch.no_grad():
+        # obj_detected = YoloV7('yolov7.pt', 0.25, 0.45, device, 640)
+    node = ObjectDetection()
+    rclpy.spin(node)
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':
