@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int16MultiArray
 from rcl_interfaces.msg import ParameterDescriptor
+from geometry_msgs.msg import Point
 
 import argparse
 from pathlib import Path
@@ -39,7 +40,9 @@ class ObjectDetection(Node):
 
         self.frequency = 1000  # Hz
         self.timer = self.create_timer(1/self.frequency, self.timer_callback)
-        self.get_logger().info(f"depth_coord")
+
+        self.pub_person = self.create_publisher(Point, "/person", 10)
+        self.person = Point()
 
         # Initialize
         set_logging()
@@ -94,8 +97,11 @@ class ObjectDetection(Node):
             depth_frame = aligned_frames.get_depth_frame()
 
             # Convert frames to numpy arrays
-            img = np.asanyarray(color_frame.get_data())
-            depth_image = np.asanyarray(depth_frame.get_data())
+            # img = np.asanyarray(color_frame.get_data())
+            # depth_image = np.asanyarray(depth_frame.get_data())
+            # Flip image for dog realsense mounted upside down
+            img = cv2.flip(cv2.flip(np.asanyarray(color_frame.get_data()),0),1)
+            depth_image = cv2.flip(cv2.flip(np.asanyarray(depth_frame.get_data()),0),1)
 
             # Get color depth image
             depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
@@ -145,44 +151,48 @@ class ObjectDetection(Node):
                         # Draw a boundary box around each object
                         plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
                         plot_one_box(xyxy, depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
-                        
-                        label_name = f'{self.names[int(cls)]}'
-                        # self.get_logger().info(f"label_name = {label_name}")
 
+                        label_name = f'{self.names[int(cls)]}'
                         # Choose label and confidence threshold for publishing
                         if label_name == 'person' and conf > 0.8:
                             # Get box top left & bottom right coordinates
                             c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
                             x = int((c2[0]+c1[0])/2)
                             y = int((c2[1]+c1[1])/2)
-                            # print(f"c1 = {c1}, c2 = {c2}")
-                            # print(f"x = {x}, y = {y}")
+
                             if x < 480 and y < 480: #and depth_image[x][y] < 1000:
                                 # get depth using x,y coordinates value in the depth matrix
                                 profile_stre = profile.get_stream(rs.stream.color)
                                 intr = profile_stre.as_video_stream_profile().get_intrinsics()
                                 depth_coords = rs.rs2_deproject_pixel_to_point(intr, [x,y], depth_image[x][y])
                                 if depth_coords != [0.0,0.0,0.0]:
-                                    # print(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
+                                    # Relative to camera frame
+                                    self.person.x = depth_coords[0]*depth_scale
+                                    self.person.y = depth_coords[1]*depth_scale
+                                    self.person.z = depth_coords[2]*depth_scale # Depth
+                                    self.pub_person.publish(self.person)
                                     self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
+
+# Using cv2.flip() method
+# Use Flip code 0 to flip vertically
+# image = cv2.flip(src, 0)
+                # cv2.imshow("Detection result", cv2.flip(cv2.flip(im0,0),1))
+                # cv2.imshow("Detection result depth", cv2.flip(cv2.flip(depth_color_map,0),1))
                 cv2.imshow("Detection result", im0)
                 cv2.imshow("Detection result depth", depth_color_map)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
 
     def timer_callback(self):
-        # self.detection.detect()
         self.detect()
 
 def main(args=None):
     """Run the main function."""
     rclpy.init(args=args)
     with torch.no_grad():
-        # obj_detected = YoloV7('yolov7.pt', 0.25, 0.45, device, 640)
         node = ObjectDetection()
         rclpy.spin(node)
         rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
