@@ -26,7 +26,7 @@ class ObjectDetection(Node):
         super().__init__("ObjectDetection")
         # True initial variables - these only get set once
 
-        self.declare_parameter("weights", "yolov7.pt", ParameterDescriptor(description="Weights file"))
+        self.declare_parameter("weights", "guide_dog.pt", ParameterDescriptor(description="Weights file"))
         self.declare_parameter("conf_thres", 0.25, ParameterDescriptor(description="Confidence threshold"))
         self.declare_parameter("iou_thres", 0.45, ParameterDescriptor(description="IOU threshold"))
         self.declare_parameter("device", "cpu", ParameterDescriptor(description="Name of the device"))
@@ -41,8 +41,13 @@ class ObjectDetection(Node):
         self.frequency = 1000  # Hz
         self.timer = self.create_timer(1/self.frequency, self.timer_callback)
 
+        # Publishers for Classes
         self.pub_person = self.create_publisher(Point, "/person", 10)
         self.person = Point()
+        self.pub_door = self.create_publisher(Point, "/door", 10)
+        self.door = Point()
+        self.pub_stairs = self.create_publisher(Point, "/stairs", 10)
+        self.stairs = Point()
 
         # Initialize
         set_logging()
@@ -97,11 +102,11 @@ class ObjectDetection(Node):
             depth_frame = aligned_frames.get_depth_frame()
 
             # Convert frames to numpy arrays
-            # img = np.asanyarray(color_frame.get_data())
-            # depth_image = np.asanyarray(depth_frame.get_data())
+            img = np.asanyarray(color_frame.get_data())
+            depth_image = np.asanyarray(depth_frame.get_data())
             # Flip image for dog realsense mounted upside down
-            img = cv2.flip(cv2.flip(np.asanyarray(color_frame.get_data()),0),1)
-            depth_image = cv2.flip(cv2.flip(np.asanyarray(depth_frame.get_data()),0),1)
+            # img = cv2.flip(cv2.flip(np.asanyarray(color_frame.get_data()),0),1)
+            # depth_image = cv2.flip(cv2.flip(np.asanyarray(depth_frame.get_data()),0),1)
 
             # Get color depth image
             depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
@@ -148,29 +153,43 @@ class ObjectDetection(Node):
                     # Write results
                     for *xyxy, conf, cls in reversed(det):
                         label = f'{self.names[int(cls)]} {conf:.2f}'
-                        # Draw a boundary box around each object
-                        plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
-                        plot_one_box(xyxy, depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
 
-                        label_name = f'{self.names[int(cls)]}'
-                        # Choose label and confidence threshold for publishing
-                        if label_name == 'person' and conf > 0.8:
+                        if conf > 0.8: # Limit confidence threshold to 80% for all classes
+                            # Draw a boundary box around each object
+                            plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
+                            plot_one_box(xyxy, depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
+
+                            label_name = f'{self.names[int(cls)]}'
+
                             # Get box top left & bottom right coordinates
                             c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
                             x = int((c2[0]+c1[0])/2)
                             y = int((c2[1]+c1[1])/2)
 
-                            if x < 480 and y < 480: #and depth_image[x][y] < 1000:
+                            # Limit location and distance of object to 480x480 and 5meters away
+                            if x < 480 and y < 480 and depth_image[x][y] < 5000:
                                 # get depth using x,y coordinates value in the depth matrix
                                 profile_stre = profile.get_stream(rs.stream.color)
                                 intr = profile_stre.as_video_stream_profile().get_intrinsics()
                                 depth_coords = rs.rs2_deproject_pixel_to_point(intr, [x,y], depth_image[x][y])
+
                                 if depth_coords != [0.0,0.0,0.0]:
-                                    # Relative to camera frame
-                                    self.person.x = depth_coords[0]*depth_scale
-                                    self.person.y = depth_coords[1]*depth_scale
-                                    self.person.z = depth_coords[2]*depth_scale # Depth
-                                    self.pub_person.publish(self.person)
+                                    # Choose label for publishing position Relative to camera frame
+                                    if label_name == 'person':
+                                        self.person.x = depth_coords[0]*depth_scale
+                                        self.person.y = depth_coords[1]*depth_scale
+                                        self.person.z = depth_coords[2]*depth_scale # Depth
+                                        self.pub_person.publish(self.person)
+                                    if label_name == 'door':
+                                        self.door.x = depth_coords[0]*depth_scale
+                                        self.door.y = depth_coords[1]*depth_scale
+                                        self.door.z = depth_coords[2]*depth_scale # Depth
+                                        self.pub_door.publish(self.door)
+                                    if label_name == 'stairs':
+                                        self.stairs.x = depth_coords[0]*depth_scale
+                                        self.stairs.y = depth_coords[1]*depth_scale
+                                        self.stairs.z = depth_coords[2]*depth_scale # Depth
+                                        self.pub_stairs.publish(self.stairs)
                                     self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
 
 # Using cv2.flip() method
