@@ -78,6 +78,10 @@ class ObjectDetection(Node):
         config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
         config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
 
+        # Inscrease size, but decrease FPS
+        # config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 6)
+        # config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 6)
+
         # Start the pipeline streaming according to the configuration
         pipeline = rs.pipeline()
         profile = pipeline.start(config)
@@ -154,6 +158,8 @@ class ObjectDetection(Node):
                     for *xyxy, conf, cls in reversed(det):
                         label = f'{self.names[int(cls)]} {conf:.2f}'
 
+                        # self.get_logger().info(f"{xyxy}")
+
                         if conf > 0.8: # Limit confidence threshold to 80% for all classes
                             # Draw a boundary box around each object
                             plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
@@ -167,7 +173,7 @@ class ObjectDetection(Node):
                             y = int((c2[1]+c1[1])/2)
 
                             # Limit location and distance of object to 480x480 and 5meters away
-                            if x < 480 and y < 480 and depth_image[x][y] < 5000:
+                            if x < 480 and y < 640 and depth_image[x][y] < 5000:
                                 # get depth using x,y coordinates value in the depth matrix
                                 profile_stre = profile.get_stream(rs.stream.color)
                                 intr = profile_stre.as_video_stream_profile().get_intrinsics()
@@ -190,7 +196,7 @@ class ObjectDetection(Node):
                                         self.stairs.y = depth_coords[1]*depth_scale
                                         self.stairs.z = depth_coords[2]*depth_scale # Depth
                                         self.pub_stairs.publish(self.stairs)
-                                    self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
+                                    # self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
 
 # Using cv2.flip() method
 # Use Flip code 0 to flip vertically
