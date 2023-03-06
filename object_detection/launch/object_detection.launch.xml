@@ -3,7 +3,7 @@
     <arg name="use_realsense" default="true" />
 
     <!-- YOLOv7 Object detection node -->
-    <node pkg="object_detection" exec="object_detection" name="object_detection"/>
+    <!-- <node pkg="object_detection" exec="object_detection" name="object_detection"/> -->
 
     <include file="$(find-pkg-share realsense2_camera)/launch/rs_launch.py" if="$(eval '\'$(var use_realsense)\' == \'true\'')">
       <arg name="enable_depth" value="true" />
@@ -17,6 +17,11 @@
       <arg name="depth_module.profile" value="640x480x30" />
       <arg name="rgb_camera.profile" value="640x480x30" />
     </include>
+
+    <!-- Static transform publisher between base_link and realsense tf frames -->
+    <node pkg="tf2_ros" exec="static_transform_publisher" name="base_link_to_camera_link"
+          args="0.25 0 0.1 0 0 0 /base_link /camera_link"
+          if="$(eval '\'$(var use_realsense)\' == \'true\'')"/>
 
 </launch>
 
