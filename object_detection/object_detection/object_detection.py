@@ -85,10 +85,10 @@ class ObjectDetection(Node):
 
         # Realsense package
         self.bridge = CvBridge()
-        # RealSense image
-        self.rs_sub = self.create_subscription(Image, '/camera/color/image_raw', self.rs_callback, 10)
-        self.align_depth_sub = self.create_subscription(Image, '/camera/aligned_depth_to_color/image_raw', self.align_depth_callback, 10)
-        # self.rs_sub = self.create_subscription(CompressedImage, '/camera/color/image_raw/compressed', self.rs_callback, 10)
+        # # RealSense image
+        # self.rs_sub = self.create_subscription(Image, '/camera/color/image_raw', self.rs_callback, 10)
+        # self.align_depth_sub = self.create_subscription(Image, '/camera/aligned_depth_to_color/image_raw', self.align_depth_callback, 10)
+        self.rs_sub = self.create_subscription(CompressedImage, '/camera/color/image_raw/compressed', self.rs_callback, 10)
         # self.align_depth_sub = self.create_subscription(CompressedImage, '/camera/aligned_depth_to_color/image_raw/compressed', self.align_depth_callback, 10)
 
 
@@ -116,7 +116,9 @@ class ObjectDetection(Node):
         self.camera_depth = True
 
     def rs_callback(self, data):
-        self.image = self.bridge.imgmsg_to_cv2(data)
+        # self.image = self.bridge.imgmsg_to_cv2(data)
+        self.image = self.bridge.compressed_imgmsg_to_cv2(data)
+        self.rgb_image = self.image
 
         # cv2.waitKey(1)
 
@@ -126,7 +128,9 @@ class ObjectDetection(Node):
         #     cv2.destroyAllWindows()
 
         # Get color depth image
-        self.rgb_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
+        # self.rgb_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
+
+        # cv2.imshow("YOLOv7 Object detection result RGB", self.image)
 
         self.camera_RGB = True
 
@@ -318,7 +322,7 @@ class ObjectDetection(Node):
                     if conf > 0.8: # Limit confidence threshold to 80% for all classes
                         # Draw a boundary box around each object
                         plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
-                        plot_one_box(xyxy, self.depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
+                        # plot_one_box(xyxy, self.depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
 
                         # label_name = f'{self.names[int(cls)]}'
 
@@ -354,14 +358,14 @@ class ObjectDetection(Node):
                         #         # self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
 
             cv2.imshow("YOLOv7 Object detection result RGB", im0)
-            cv2.imshow("YOLOv7 Object detection result Depth", self.depth_color_map)
+            # cv2.imshow("YOLOv7 Object detection result Depth", self.depth_color_map)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
     def timer_callback(self):
         # self.detect()
 
-        if self.camera_RGB == True and self.camera_depth == True:
+        if self.camera_RGB == True: #and self.camera_depth == True:
             self.YOLOv7_detect()
 
 def main(args=None):
