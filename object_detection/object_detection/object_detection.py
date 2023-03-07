@@ -259,7 +259,7 @@ class ObjectDetection(Node):
                                         self.stairs.y = depth_coords[1]*depth_scale
                                         self.stairs.z = depth_coords[2]*depth_scale # Depth
                                         self.pub_stairs.publish(self.stairs)
-                                    # self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
+                                    self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
 
 
 # Using cv2.flip() method
@@ -363,10 +363,10 @@ class ObjectDetection(Node):
                 break
 
     def timer_callback(self):
-        # self.detect()
+        self.detect()
 
-        if self.camera_RGB == True: #and self.camera_depth == True:
-            self.YOLOv7_detect()
+        # if self.camera_RGB == True: #and self.camera_depth == True:
+        #     self.YOLOv7_detect()
 
 def main(args=None):
     """Run the main function."""

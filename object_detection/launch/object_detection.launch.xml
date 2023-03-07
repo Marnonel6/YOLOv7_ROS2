@@ -1,6 +1,6 @@
 <launch>
 
-    <arg name="use_realsense" default="true" />
+    <arg name="use_realsense" default="false" />
 
     <!-- YOLOv7 Object detection node -->
     <node pkg="object_detection" exec="object_detection" name="object_detection"/>
@@ -20,4 +20,3 @@
     </include>
 
 </launch>
-
