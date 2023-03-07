@@ -48,8 +48,8 @@ class ObjectDetection(Node):
         self.device = self.get_parameter("device").get_parameter_value().string_value
         self.img_size = self.get_parameter("img_size").get_parameter_value().integer_value
 
-        # self.frequency = 1000  # Hz
-        # self.timer = self.create_timer(1/self.frequency, self.timer_callback)
+        self.frequency = 30  # Hz
+        self.timer = self.create_timer(1/self.frequency, self.timer_callback)
 
         # Publishers for Classes
         self.pub_person = self.create_publisher(Point, "/person", 10)
@@ -87,162 +87,60 @@ class ObjectDetection(Node):
         self.bridge = CvBridge()
         # RealSense image
         self.rs_sub = self.create_subscription(Image, '/camera/color/image_raw', self.rs_callback, 10)
-        # self.align_depth_sub = self.create_subscription(Image, '/camera/aligned_depth_to_color/image_raw', self.align_depth_callback, 10)
+        self.align_depth_sub = self.create_subscription(Image, '/camera/aligned_depth_to_color/image_raw', self.align_depth_callback, 10)
 
 
         self.image = None
         self.depth = None
         self.depth_color_map = None
+        self.rgb_image = None
 
-    # def align_depth_callback(self, data):
-    #     self.depth  = self.bridge.imgmsg_to_cv2(data)
-    #     #    self.image = cv2.flip(self.image, 1)  # Mirror display
-    #     # self.image = cv.cvtColor(self.image, cv.COLOR_BGR2RGB)
-    #     # self.debug_image = copy.deepcopy(self.image)
-    #     cv2.waitKey(1)
-    #     ##########
-    #     # fps = self.cvFpsCalc.get()
+        self.camera_RGB = False
+        self.camera_depth = False
 
-    #     # Process Key (ESC: end) #################################################
-    #     key = cv2.waitKey(10)
-    #     if key == 27:  # ESC
-    #         self.cap.release()
-    #         cv2.destroyAllWindows()
+    def align_depth_callback(self, data):
+        self.depth  = self.bridge.imgmsg_to_cv2(data)
+        #    self.image = cv2.flip(self.image, 1)  # Mirror display
+        # self.image = cv.cvtColor(self.image, cv.COLOR_BGR2RGB)
+        # self.debug_image = copy.deepcopy(self.image)
+        cv2.waitKey(1)
+        ##########
+        # fps = self.cvFpsCalc.get()
 
-    #     # Screen reflection #############################################################
-    #     # Get color depth image
-    #     depth_image = np.asanyarray(self.depth.get_data())
-    #     self.depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
-    #     cv2.imshow('YOLOv7 depth object detection', self.depth_color_map)
+        # Process Key (ESC: end) #################################################
+        key = cv2.waitKey(10)
+        if key == 27:  # ESC
+            self.cap.release()
+            cv2.destroyAllWindows()
+
+        # Screen reflection #############################################################
+        # Get color depth image
+        self.depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(self.depth, alpha=0.08), cv2.COLORMAP_JET)
+        # cv2.imshow('YOLOv7 depth object detection', self.depth_color_map)
+
+        self.camera_depth = True
 
     def rs_callback(self, data):
-            self.image = self.bridge.imgmsg_to_cv2(data)
-            #    self.image = cv2.flip(self.image, 1)  # Mirror display
-            # self.image = cv.cvtColor(self.image, cv.COLOR_BGR2RGB)
-            # self.debug_image = copy.deepcopy(self.image)
-            cv2.waitKey(1)
-            ##########
-            # fps = self.cvFpsCalc.get()
+        self.image = self.bridge.imgmsg_to_cv2(data)
+        #    self.image = cv2.flip(self.image, 1)  # Mirror display
+        # self.image = cv.cvtColor(self.image, cv.COLOR_BGR2RGB)
+        # self.debug_image = copy.deepcopy(self.image)
+        cv2.waitKey(1)
+        ##########
+        # fps = self.cvFpsCalc.get()
 
-            # Process Key (ESC: end) #################################################
-            key = cv2.waitKey(10)
-            if key == 27:  # ESC
-                self.cap.release()
-                cv2.destroyAllWindows()
+        # Process Key (ESC: end) #################################################
+        key = cv2.waitKey(10)
+        if key == 27:  # ESC
+            self.cap.release()
+            cv2.destroyAllWindows()
 
-            # Screen reflection #############################################################
-            rgb_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
-            cv2.imshow('YOLOv7 object detection', rgb_image)
+        # Screen reflection #############################################################
+        self.rgb_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
+        # cv2.imshow('YOLOv7 object detection', rgb_image)
 
+        self.camera_RGB = True
 
-            # Wait for available frames
-            # Frame set includes time synchronized frames of each enabled stream in the pipeline
-            # frames = pipeline.wait_for_frames()
-
-            # Get aligned frames from RGB-D camera
-            # aligned_frames = align.process(frames)
-            # color_frame = aligned_frames.get_color_frame()
-            # depth_frame = aligned_frames.get_depth_frame()
-
-            # Convert frames to numpy arrays
-            # img = np.asanyarray(rgb_image.get_data())
-            img = rgb_image
-            # depth_image = np.asanyarray(depth_frame.get_data())
-
-            # Flip image for dog realsense mounted upside down
-            # img = cv2.flip(cv2.flip(np.asanyarray(color_frame.get_data()),0),1)
-            # depth_image = cv2.flip(cv2.flip(np.asanyarray(depth_frame.get_data()),0),1)
-
-            # Get color depth image
-            # depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
-            im0 = img.copy()
-            img = img[np.newaxis, :, :, :]
-            img = np.stack(img, 0)
-            img = img[..., ::-1].transpose((0, 3, 1, 2))
-            img = np.ascontiguousarray(img)
-            img = torch.from_numpy(img).to(self.device)
-            img = img.half() if self.half else img.float()  # uint8 to fp16/32
-            img /= 255.0  # 0 - 255 to 0.0 - 1.0
-            if img.ndimension() == 3:
-                img = img.unsqueeze(0)
-
-            # Warmup
-            if self.device.type != 'cpu' and (self.old_img_b != img.shape[0] or self.old_img_h != img.shape[2] or self.old_img_w != img.shape[3]):
-                self.old_img_b = img.shape[0]
-                self.old_img_h = img.shape[2]
-                self.old_img_w = img.shape[3]
-                for i in range(3):
-                    self.model(img)[0]
-
-            # Inference
-            t1 = time_synchronized()
-            with torch.no_grad():   # Calculating gradients would cause a GPU memory leak
-                pred = self.model(img)[0]
-            t2 = time_synchronized()
-
-            # Apply NMS
-            pred = non_max_suppression(pred, self.conf_thres, self.iou_thres)
-            t3 = time_synchronized()
-
-            # Process detections
-            for i, det in enumerate(pred):  # detections per image
-                gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-                if len(det):
-                    # Rescale boxes from img_size to im0 size
-                    det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
-
-                    # Print results
-                    for c in det[:, -1].unique():
-                        n = (det[:, -1] == c).sum()  # detections per class
-
-                    # Write results
-                    for *xyxy, conf, cls in reversed(det):
-                        label = f'{self.names[int(cls)]} {conf:.2f}'
-
-                        # self.get_logger().info(f"{xyxy}")
-
-                        if conf > 0.8: # Limit confidence threshold to 80% for all classes
-                            # Draw a boundary box around each object
-                            plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
-                            # plot_one_box(xyxy, depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
-
-                            # label_name = f'{self.names[int(cls)]}'
-
-                            # # Get box top left & bottom right coordinates
-                            # c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
-                            # x = int((c2[0]+c1[0])/2)
-                            # y = int((c2[1]+c1[1])/2)
-
-                            # # Limit location and distance of object to 480x480 and 5meters away
-                            # if x < 480 and y < 640 and depth_image[x][y] < 5000:
-                            #     # get depth using x,y coordinates value in the depth matrix
-                            #     profile_stre = profile.get_stream(rs.stream.color)
-                            #     intr = profile_stre.as_video_stream_profile().get_intrinsics()
-                            #     depth_coords = rs.rs2_deproject_pixel_to_point(intr, [x,y], depth_image[x][y])
-
-                            #     if depth_coords != [0.0,0.0,0.0]:
-                            #         # Choose label for publishing position Relative to camera frame
-                            #         if label_name == 'person':
-                            #             self.person.x = depth_coords[0]*depth_scale
-                            #             self.person.y = depth_coords[1]*depth_scale
-                            #             self.person.z = depth_coords[2]*depth_scale # Depth
-                            #             self.pub_person.publish(self.person)
-                            #         if label_name == 'door':
-                            #             self.door.x = depth_coords[0]*depth_scale
-                            #             self.door.y = depth_coords[1]*depth_scale
-                            #             self.door.z = depth_coords[2]*depth_scale # Depth
-                            #             self.pub_door.publish(self.door)
-                            #         if label_name == 'stairs':
-                            #             self.stairs.x = depth_coords[0]*depth_scale
-                            #             self.stairs.y = depth_coords[1]*depth_scale
-                            #             self.stairs.z = depth_coords[2]*depth_scale # Depth
-                            #             self.pub_stairs.publish(self.stairs)
-                                    # self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
-
-                cv2.imshow("Detection result", im0)
-                # cv2.imshow("Detection result depth", depth_color_map)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
 
     def detect(self):
         # Define image size, format, and frame rate
@@ -370,6 +268,7 @@ class ObjectDetection(Node):
                                         self.pub_stairs.publish(self.stairs)
                                     # self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
 
+
 # Using cv2.flip() method
 # Use Flip code 0 to flip vertically
 # image = cv2.flip(src, 0)
@@ -380,8 +279,104 @@ class ObjectDetection(Node):
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
 
-    # def timer_callback(self):
+    def YOLOv7_detect(self):
+        # Get color depth image
+        # depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.08), cv2.COLORMAP_JET)
+        img = self.rgb_image
+        im0 = img.copy()
+        img = img[np.newaxis, :, :, :]
+        img = np.stack(img, 0)
+        img = img[..., ::-1].transpose((0, 3, 1, 2))
+        img = np.ascontiguousarray(img)
+        img = torch.from_numpy(img).to(self.device)
+        img = img.half() if self.half else img.float()  # uint8 to fp16/32
+        img /= 255.0  # 0 - 255 to 0.0 - 1.0
+        if img.ndimension() == 3:
+            img = img.unsqueeze(0)
+
+        # Warmup
+        if self.device.type != 'cpu' and (self.old_img_b != img.shape[0] or self.old_img_h != img.shape[2] or self.old_img_w != img.shape[3]):
+            self.old_img_b = img.shape[0]
+            self.old_img_h = img.shape[2]
+            self.old_img_w = img.shape[3]
+            for i in range(3):
+                self.model(img)[0]
+
+        # Inference
+        t1 = time_synchronized()
+        with torch.no_grad():   # Calculating gradients would cause a GPU memory leak
+            pred = self.model(img)[0]
+        t2 = time_synchronized()
+
+        # Apply NMS
+        pred = non_max_suppression(pred, self.conf_thres, self.iou_thres)
+        t3 = time_synchronized()
+
+        # Process detections
+        for i, det in enumerate(pred):  # detections per image
+            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            if len(det):
+                # Rescale boxes from img_size to im0 size
+                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+
+                # Print results
+                for c in det[:, -1].unique():
+                    n = (det[:, -1] == c).sum()  # detections per class
+
+                # Write results
+                for *xyxy, conf, cls in reversed(det):
+                    label = f'{self.names[int(cls)]} {conf:.2f}'
+
+                    # self.get_logger().info(f"{xyxy}")
+
+                    if conf > 0.8: # Limit confidence threshold to 80% for all classes
+                        # Draw a boundary box around each object
+                        plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
+                        plot_one_box(xyxy, self.depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
+
+                        label_name = f'{self.names[int(cls)]}'
+
+                        # Get box top left & bottom right coordinates
+                        # c1, c2 = (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3]))
+                        # x = int((c2[0]+c1[0])/2)
+                        # y = int((c2[1]+c1[1])/2)
+
+                        # # Limit location and distance of object to 480x480 and 5meters away
+                        # if x < 480 and y < 640 and depth_image[x][y] < 5000:
+                        #     # get depth using x,y coordinates value in the depth matrix
+                        #     profile_stre = profile.get_stream(rs.stream.color)
+                        #     intr = profile_stre.as_video_stream_profile().get_intrinsics()
+                        #     depth_coords = rs.rs2_deproject_pixel_to_point(intr, [x,y], depth_image[x][y])
+
+                        #     if depth_coords != [0.0,0.0,0.0]:
+                        #         # Choose label for publishing position Relative to camera frame
+                        #         if label_name == 'person':
+                        #             self.person.x = depth_coords[0]*depth_scale
+                        #             self.person.y = depth_coords[1]*depth_scale
+                        #             self.person.z = depth_coords[2]*depth_scale # Depth
+                        #             self.pub_person.publish(self.person)
+                        #         if label_name == 'door':
+                        #             self.door.x = depth_coords[0]*depth_scale
+                        #             self.door.y = depth_coords[1]*depth_scale
+                        #             self.door.z = depth_coords[2]*depth_scale # Depth
+                        #             self.pub_door.publish(self.door)
+                        #         if label_name == 'stairs':
+                        #             self.stairs.x = depth_coords[0]*depth_scale
+                        #             self.stairs.y = depth_coords[1]*depth_scale
+                        #             self.stairs.z = depth_coords[2]*depth_scale # Depth
+                        #             self.pub_stairs.publish(self.stairs)
+                                # self.get_logger().info(f"depth_coord = {depth_coords[0]*depth_scale}  {depth_coords[1]*depth_scale}  {depth_coords[2]*depth_scale}")
+
+            cv2.imshow("YOLOv7 Object detection result RGB", im0)
+            cv2.imshow("YOLOv7 Object detection result Depth", self.depth_color_map)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    def timer_callback(self):
         # self.detect()
+
+        if self.camera_RGB == True and self.camera_depth == True:
+            self.YOLOv7_detect()
 
 def main(args=None):
     """Run the main function."""
