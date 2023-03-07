@@ -1,25 +1,11 @@
 import rclpy
 from rclpy.node import Node
-# from std_msgs.msg import Int16MultiArray
 from rcl_interfaces.msg import ParameterDescriptor
 from geometry_msgs.msg import Point
-
-# import argparse
-# from pathlib import Path
-
 import cv2
 import torch
 import numpy as np
 import pyrealsense2 as rs
-# import requests
-
-# import csv
-# import copy
-# import itertools
-# from collections import Counter
-# from collections import deque
-
-# from std_msgs.msg import Int32
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 
@@ -34,8 +20,7 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized,
 class ObjectDetection(Node):
     def __init__(self):
         super().__init__("ObjectDetection")
-        # True initial variables - these only get set once
-
+        # Parameters
         self.declare_parameter("weights", "guide_dog.pt", ParameterDescriptor(description="Weights file"))
         self.declare_parameter("conf_thres", 0.25, ParameterDescriptor(description="Confidence threshold"))
         self.declare_parameter("iou_thres", 0.45, ParameterDescriptor(description="IOU threshold"))
@@ -48,7 +33,7 @@ class ObjectDetection(Node):
         self.device = self.get_parameter("device").get_parameter_value().string_value
         self.img_size = self.get_parameter("img_size").get_parameter_value().integer_value
 
-        self.frequency = 30  # Hz
+        self.frequency = 20  # Hz
         self.timer = self.create_timer(1/self.frequency, self.timer_callback)
 
         # Publishers for Classes
@@ -101,7 +86,8 @@ class ObjectDetection(Node):
         self.camera_depth = False
 
     def align_depth_callback(self, data):
-        self.depth  = self.bridge.imgmsg_to_cv2(data)
+        # self.depth  = self.bridge.imgmsg_to_cv2(data)
+        self.depth = self.bridge.compressed_imgmsg_to_cv2(data)
 
         # cv2.waitKey(1)
 
@@ -322,7 +308,7 @@ class ObjectDetection(Node):
                     if conf > 0.8: # Limit confidence threshold to 80% for all classes
                         # Draw a boundary box around each object
                         plot_one_box(xyxy, im0, label=label, color=self.colors[int(cls)], line_thickness=2)
-                        # plot_one_box(xyxy, self.depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
+                        plot_one_box(xyxy, self.depth_color_map, label=label, color=self.colors[int(cls)], line_thickness=2)
 
                         # label_name = f'{self.names[int(cls)]}'
 
@@ -363,10 +349,10 @@ class ObjectDetection(Node):
                 break
 
     def timer_callback(self):
-        self.detect()
+        # self.detect()
 
-        # if self.camera_RGB == True: #and self.camera_depth == True:
-        #     self.YOLOv7_detect()
+        if self.camera_RGB == True: #and self.camera_depth == True:
+            self.YOLOv7_detect()
 
 def main(args=None):
     """Run the main function."""
