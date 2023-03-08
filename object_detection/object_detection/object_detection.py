@@ -26,12 +26,16 @@ class ObjectDetection(Node):
         self.declare_parameter("iou_thres", 0.45, ParameterDescriptor(description="IOU threshold"))
         self.declare_parameter("device", "cpu", ParameterDescriptor(description="Name of the device"))
         self.declare_parameter("img_size", 640, ParameterDescriptor(description="Image size"))
+        self.declare_parameter("use_RGB", False, ParameterDescriptor(description="Use realsense RGB camera"))
+        self.declare_parameter("use_depth", False, ParameterDescriptor(description="Use realsense Depth camera"))
 
         self.weights = self.get_parameter("weights").get_parameter_value().string_value
         self.conf_thres = self.get_parameter("conf_thres").get_parameter_value().double_value
         self.iou_thres = self.get_parameter("iou_thres").get_parameter_value().double_value
         self.device = self.get_parameter("device").get_parameter_value().string_value
         self.img_size = self.get_parameter("img_size").get_parameter_value().integer_value
+        self.use_RGB = self.get_parameter("use_RGB").get_parameter_value().bool_value
+        self.use_depth = self.get_parameter("use_depth").get_parameter_value().bool_value
 
         self.frequency = 20  # Hz
         self.timer = self.create_timer(1/self.frequency, self.timer_callback)
@@ -73,8 +77,10 @@ class ObjectDetection(Node):
         # # RealSense image
         # self.rs_sub = self.create_subscription(Image, '/camera/color/image_raw', self.rs_callback, 10)
         # self.align_depth_sub = self.create_subscription(Image, '/camera/aligned_depth_to_color/image_raw', self.align_depth_callback, 10)
-        self.rs_sub = self.create_subscription(CompressedImage, '/camera/color/image_raw/compressed', self.rs_callback, 10)
-        # self.align_depth_sub = self.create_subscription(CompressedImage, '/camera/aligned_depth_to_color/image_raw/compressed', self.align_depth_callback, 10)
+        if self.use_RGB == True:
+            self.rs_sub = self.create_subscription(CompressedImage, '/camera/color/image_raw/compressed', self.rs_callback, 10)
+        if self.use_depth == True:
+            self.align_depth_sub = self.create_subscription(CompressedImage, '/camera/aligned_depth_to_color/image_raw/compressed', self.align_depth_callback, 10)
 
 
         self.image = None

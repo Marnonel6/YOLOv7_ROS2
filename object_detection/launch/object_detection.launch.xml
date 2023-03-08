@@ -1,9 +1,14 @@
 <launch>
 
-    <arg name="use_realsense" default="false" />
+    <arg name="use_realsense" default="False" />
+    <arg name="use_RGB" default="False" />
+    <arg name="use_depth" default="False" />
 
     <!-- YOLOv7 Object detection node -->
-    <node pkg="object_detection" exec="object_detection" name="object_detection"/>
+    <node pkg="object_detection" exec="object_detection" name="object_detection">
+        <param name="use_RGB" value="$(var use_RGB)" />
+        <param name="use_depth" value="$(var use_depth)" />
+    </node>
 
     <include file="$(find-pkg-share realsense2_camera)/launch/rs_launch.py" if="$(eval '\'$(var use_realsense)\' == \'true\'')">
       <arg name="enable_depth" value="true" />
