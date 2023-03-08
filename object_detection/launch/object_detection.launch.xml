@@ -10,16 +10,15 @@
         <param name="use_depth" value="$(var use_depth)" />
     </node>
 
-    <include file="$(find-pkg-share realsense2_camera)/launch/rs_launch.py" if="$(eval '\'$(var use_realsense)\' == \'true\'')">
-      <arg name="enable_depth" value="true" />
-      <arg name="enable_color" value="true" />
+    <include file="$(find-pkg-share realsense2_camera)/launch/rs_launch.py" if="$(eval '\'$(var use_realsense)\' == \'True\'')">
+      <arg name="enable_depth" value="$(var use_depth)" />
+      <arg name="align_depth.enable" value="$(var use_depth)" />
+      <arg name="enable_color" value="$(var use_RGB)" />
       <arg name="enable_fisheye1" value="false" />
       <arg name="enable_fisheye2" value="false" />
-      <!-- <arg name="pointcloud.enable" value="true" /> -->
       <arg name="colorizer.enable" value="false" />
-      <arg name="clip_distance" value="5.0" />
+      <arg name="clip_distance" value="10.0" />
       <arg name="tf_publish_rate" value="0.0" />
-      <arg name="align_depth.enable" value="true" />
       <arg name="depth_module.profile" value="640x480x30" />
       <arg name="rgb_camera.profile" value="640x480x30" />
     </include>
