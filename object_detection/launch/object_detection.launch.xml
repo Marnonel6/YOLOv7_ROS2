@@ -2,7 +2,7 @@
 
     <!-- Parameters -->
     <arg name="use_realsense" default="False" />
-    <arg name="use_RGB" default="False" />
+    <arg name="use_RGB" default="True" />
     <arg name="use_depth" default="False" />
     <arg name="use_YOLOv7" default="False" />
 

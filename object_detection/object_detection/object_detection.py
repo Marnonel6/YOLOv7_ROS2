@@ -122,6 +122,7 @@ class ObjectDetection(Node):
         Returns: None
         """
         self.depth  = self.bridge.imgmsg_to_cv2(data)
+        self.depth = cv2.flip(cv2.flip(np.asanyarray(self.depth),0),1) # Camera is upside down on the Go1
         self.depth_color_map = cv2.applyColorMap(cv2.convertScaleAbs(self.depth, alpha=0.08), cv2.COLORMAP_JET)
         self.camera_depth = True
 
@@ -140,7 +141,9 @@ class ObjectDetection(Node):
     def YOLOv7_detect(self):
         """ Preform object detection with YOLOv7"""
 
-        img = self.rgb_image
+        # Flip image
+        img = cv2.flip(cv2.flip(np.asanyarray(self.rgb_image),0),1) # Camera is upside down on the Go1
+
         im0 = img.copy()
         img = img[np.newaxis, :, :, :]
         img = np.stack(img, 0)
@@ -224,9 +227,9 @@ class ObjectDetection(Node):
                                         self.pub_stairs.publish(self.stairs)
                                     self.get_logger().info(f"depth_coord = {real_coords[0]*depth_scale}  {real_coords[1]*depth_scale}  {real_coords[2]*depth_scale}")
 
-            cv2.imshow("YOLOv7 Object detection result RGB", im0)
+            cv2.imshow("YOLOv7 Object detection result RGB", cv2.resize(im0, None, fx=1.5, fy=1.5))
             if self.use_depth == True:
-                cv2.imshow("YOLOv7 Object detection result Depth", self.depth_color_map)
+                cv2.imshow("YOLOv7 Object detection result Depth", cv2.resize(self.depth_color_map, None, fx=1.5, fy=1.5))
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
