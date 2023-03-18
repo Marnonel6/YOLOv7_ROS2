@@ -6,6 +6,9 @@ Move `guide_dog.pt` into workspace next to src directory
 
 # Dependencies
      pip3 install torch==1.9.1+cpu torchvision==0.10.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+     
+# Launch file for Demo
+`ros2 launch object_detection object_detection.launch.xml use_realsense:=True use_YOLOv7:=True`
 
 # Demo
 https://user-images.githubusercontent.com/60977336/226078995-964fbce5-dd42-4553-b531-df5996f69850.mp4
